@@ -1,0 +1,292 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}</style><style>:root{color-scheme:light dark;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}}:root[data-theme="dark"]{color-scheme:dark;--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}:root[data-theme="light"]{color-scheme:light}@media print{:root,:root[data-theme="dark"]{color-scheme:light;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}}body{background:var(--md-bg);color:var(--md-text);max-width:720px;margin:0 auto;padding:32px;display:flex;flex-direction:column;gap:10px;font:14px/1.55 -apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;overflow-wrap:break-word}body>:first-child{margin-top:0}h1,h2,h3,h4,h5,h6{margin:6px 0 0;line-height:1.25;font-weight:600;text-wrap:balance}h1{font-size:1.35em}h2{font-size:1.15em;color:var(--md-muted)}h3,h4,h5,h6{font-size:1em}p,ul,ol,blockquote,table,pre,hr{margin:0}strong{font-weight:600}a{color:var(--md-link);text-decoration:none}a:hover{text-decoration:underline}ul,ol{display:flex;flex-direction:column;gap:6px;padding-left:22px}ul{list-style:disc}ol{list-style:decimal}:is(li,td,th)>*+:is(p,ul,ol,blockquote){margin-top:6px}blockquote{display:flex;flex-direction:column;gap:10px;border-left:2px solid var(--md-rule);padding-left:10px;color:var(--md-muted)}:not(pre)>code{background:var(--md-fill);padding:1px 3px;border-radius:4px;font:.92em 'SF Mono',ui-monospace,Menlo,Consolas,monospace}a>code{background:none;color:inherit}pre{background:var(--md-fill);padding:10px 12px;border-radius:6px;overflow-x:auto;font:12px/1.5 'SF Mono',ui-monospace,Menlo,Consolas,monospace;margin-block:4px}pre code{background:none;padding:0;font:inherit}table{width:100%;border-collapse:separate;border-spacing:2px;font:inherit}th,td{padding:6px 8px;border-radius:3px;text-align:left;vertical-align:top}th{background:var(--md-fill-strong);font-weight:600}td{background:var(--md-fill)}:is(th,td) :not(pre)>code{background:transparent}hr{border:0;border-top:1px solid var(--md-rule-strong);margin-block:10px}img{max-width:100%;height:auto;border-radius:4px}</style>
+</head><body>
+<h1>Baza wiedzy — praca magisterska: architektura synchroniczna vs zdarzeniowa</h1>
+<blockquote>
+<p>Dokument żywy. Aktualizowany po każdym kolejnym przeanalizowanym artykule. Nie polegaj na pamięci czatu — to jest wersja nadrzędna. Jeśli coś tu i w rozmowie się różni, wierz plikowi.</p>
+</blockquote>
+<hr>
+<h2>0. Temat i teza (przypomnienie)</h2>
+<p><strong>Tytuł</strong>: Wpływ stylu architektonicznego na skalowalność i latencję systemów pod obciążeniem: analiza porównawcza architektury synchronicznej i zdarzeniowej.</p>
+<p><strong>Teza</strong>: wraz ze wzrostem liczby równoległych użytkowników architektura zdarzeniowa wykazuje łagodniejszą degradację przepustowości niż architektura synchroniczna, kosztem systematycznie wyższej latencji pojedynczego żądania, przy zachowaniu identycznego zakresu funkcjonalnego i gwarancji poprawności operacji na współdzielonym, ograniczonym zasobie.</p>
+<p><strong>System referencyjny</strong>: flash sale — limitowany stan magazynowy, katalog (read-heavy) + zakup (write-heavy), RabbitMQ, Docker.</p>
+<hr>
+<h2>1. Fundamenty teoretyczne (z Kleppmanna, <em>A Critique of the CAP Theorem</em>)</h2>
+<p>Ten artykuł nie jest literaturą przedmiotu pracy wprost, ale dostarcza aparatu pojęciowego użytego dalej w tym dokumencie.</p>
+<ul>
+<li><strong>Partycja sieciowa</strong> ≠ partycjonowanie danych (sharding). Partycja sieciowa to awaria komunikacji między węzłami, które nadal działają. To rozróżnienie jest częstym błędem początkującym — zapamiętaj je na stałe.</li>
+<li><strong>Safety vs liveness</strong>: safety = &quot;nic złego się nie stanie&quot; (naruszenie widoczne i nieodwracalne w danym momencie); liveness = &quot;coś dobrego kiedyś się stanie&quot; (nie da się naruszyć w skończonym czasie). Twój niezmiennik &quot;sprzedaż nigdy nie przekracza stanu&quot; to własność safety.</li>
+<li><strong>Spektrum spójności</strong>: linearyzowalność (najsilniejsza) → sequential → causal → eventual (najsłabsza). &quot;Strong vs eventual&quot; to nadmierne uproszczenie.</li>
+<li><strong>O(d) vs O(1)</strong>: czy operacja czeka na opóźnienie sieci (delay-sensitive) czy nie (delay-independent). Linearyzowalność = O(d) na zapis i odczyt; causal consistency = O(1) na oba. To bezpośrednio tłumaczy mechanizm Twojej tezy: RabbitMQ jako bufor odrywa czas odpowiedzi klienta od czasu przetworzenia zdarzenia.</li>
+<li><strong>Prawo Little'a</strong>: L = λ × W. Gdy napływ żądań (λ) przekracza zdolność przetwarzania systemu, czas przebywania w systemie (W) rośnie nieograniczenie — to matematyczny szkielet zjawiska &quot;gwałtownej degradacji&quot; obserwowanego empirycznie w kolejnych artykułach.</li>
+<li><strong>Dostępność jako metryka empiryczna</strong> (odsetek udanych żądań w limicie czasu, mierzony po fakcie), a nie właściwość algorytmu — przydatne do precyzyjnego zdefiniowania własnej definicji &quot;przeciążenia&quot; w metodologii.</li>
+</ul>
+<hr>
+<h2>2. Przegląd przeanalizowanych artykułów</h2>
+<h3>2.1 Al-Said Ahmad, Al-Qora'n, Zayed (2024). <em>Exploring the impact of chaos engineering with various user loads on cloud native applications.</em> Computing, 106(7), 2389–2425. <a href="https://doi.org/10.1007/s00607-024-01292-z">https://doi.org/10.1007/s00607-024-01292-z</a></h3>
+<p><strong>Typ</strong>: badanie eksperymentalne (fault/load injection), open access, recenzowane.</p>
+<p><strong>Co bada</strong>: wpływ wstrzykiwanych opóźnień na wydajność i dostępność dwóch aplikacji chmurowych (serverless i kontenerowa), NIE porównanie architektur sync/async.</p>
+<p><strong>Metodologia do przejęcia</strong>: baseline + rosnące opóźnienia + rosnące obciążenie, 10 powtórzeń na warunek, ten sam dzień pomiarowy dla grupy testów, rozgrzewka (warm-up) przed pomiarem.</p>
+<p><strong>Kluczowy wniosek teoretyczny</strong>: samo opóźnienie (bez &quot;prawdziwej&quot; awarii) może prowadzić do niedostępności — potwierdza mechanizm z Kleppmanna empirycznie.</p>
+<p><strong>Słabości</strong>: prawdopodobne artefakty wynikające z limitów platformy AWS (limity współbieżności Lambda, timeout API Gateway ~29s) mylone z &quot;naturą&quot; zjawiska; niespójne/nieomówione anomalie liczbowe (spadki &gt;100%); brak testu poprawności; brak repository/danych.</p>
+<p><strong>Gdzie użyć</strong>: rozdział teoretyczny (związek opóźnienie–dostępność), metodologia (wzorzec projektu eksperymentu), dyskusja (porównanie kształtu krzywych degradacji).</p>
+<hr>
+<h3>2.2 Rahmatulloh, Nugraha, Gunawan, Darmawan (2022). <em>Event-Driven Architecture to Improve Performance and Scalability in Microservices-Based Systems.</em> ICADEIS 2022, 1–6. <a href="https://doi.org/10.1109/ICADEIS56544.2022.10037390">https://doi.org/10.1109/ICADEIS56544.2022.10037390</a></h3>
+<p><strong>Typ</strong>: badanie eksperymentalne, bezpośrednie porównanie EDA vs synchroniczne API-Driven Architecture. Najbliższy tematycznie z dotychczasowych.</p>
+<p><strong>UWAGA terminologiczna</strong>: mimo że wstęp cytuje RabbitMQ, w implementacji użyto <strong>NATS Streaming</strong>, nie RabbitMQ. Nie cytować jako precedensu dla RabbitMQ.</p>
+<p><strong>Wyniki</strong>: EDA szybsze o 19,18% (response time), niższy error rate o 34,40%, ale wyższe CPU o 8,52%. Test na 100–500 żądań, na jednym, niesprecyzowanym endpoincie.</p>
+<p><strong>Poważne słabości metodologiczne</strong>:</p>
+<ul>
+<li>brak powtórzeń pomiarów (pojedynczy przebieg na punkt),</li>
+<li>brak percentyli (tylko średnie),</li>
+<li>wewnętrzna niespójność (przy 400 żądaniach EDA ma WYŻSZY error rate niż API-Driven — sprzeczne z ogólnym wnioskiem),</li>
+<li>brak testu poprawności/współbieżności mimo istnienia serwisu Stock,</li>
+<li>nietypowy, prawdopodobnie zaniżający obciążenie &quot;ramp-up period&quot; (patrz sekcja 4 — model zamknięty/otwarty).</li>
+</ul>
+<p><strong>Gdzie użyć</strong>: przegląd literatury jako bezpośredni precedens porównania architektur; kontrast metodologiczny (Twoja praca ma powtórzenia, percentyle, test poprawności — to wypełnia lukę); NIE cytować liczb % jako uogólnionego wyniku.</p>
+<hr>
+<h3>2.3 Lazzari, Farias (2023). <em>Uncovering the Hidden Potential of Event-Driven Architecture: A Research Agenda.</em> arXiv:2308.05270 (preprint — sprawdzić, czy istnieje zrecenzowana wersja).</h3>
+<p><strong>Typ</strong>: scoping review (metodologia doboru słaba — &quot;for convenience&quot;, tylko Google Scholar) + mała, poboczna case study.</p>
+<p><strong>Co wnosi</strong>:</p>
+<ul>
+<li>rozróżnienie EDA vs event sourcing vs CQRS (patrz glosariusz niżej),</li>
+<li>sekcja 5.6 wprost identyfikuje jako otwarty problem badawczy dokładnie to, co robi Twoja praca: dobór metryk wydajności dla systemów asynchronicznych, projektowanie realistycznych eksperymentów obciążeniowych — dobry cytat uzasadniający wagę tematu,</li>
+<li>case study autorów: EDA poprawia separation of concerns, ale pogarsza coupling/cohesion/complexity/size względem REST — dobry materiał do zrównoważenia wniosków (EDA nie wygrywa we wszystkim),</li>
+<li>sekcja o logach: w EDA nie ma tradycyjnego stack trace'u, co utrudnia diagnozowanie błędów międzyusługowych — bezpośrednio uzasadnia potrzebę correlation ID (patrz sekcja 4).</li>
+</ul>
+<p><strong>Gdzie użyć</strong>: wstęp/uzasadnienie (luka badawcza potwierdzona przez inną pracę), rozdział teoretyczny (glosariusz pojęć), dyskusja (zrównoważenie narracji o EDA). NIE jako źródło danych ilościowych.</p>
+<hr>
+<h3>2.4 Maharjan, Chy, Arju, Cerny (2023). <em>Benchmarking Message Queues.</em> Telecom, 4(2), 298–312. <a href="https://doi.org/10.3390/telecom4020018">https://doi.org/10.3390/telecom4020018</a></h3>
+<p><strong>Typ</strong>: czysty benchmark infrastruktury (broker w izolacji: 1 producent, 1 konsument), open access, MDPI (uwaga: MDPI bywa przedmiotem dyskusji o rygorze recenzji w części czasopism z tej grupy, ale metodologia tu jest solidna i dane są publiczne na GitHubie).</p>
+<p><strong>Co bada</strong>: RabbitMQ vs Kafka vs Redis Pub/Sub vs ActiveMQ Artemis — przepustowość i latencja, narzędzie OpenMessaging Benchmark (Linux Foundation, niezależne od testowanych technologii).</p>
+<p><strong>Wyniki</strong>: Kafka najlepsza przepustowość, RabbitMQ drugie miejsce (wyraźnie przed Redis i ActiveMQ). Redis najniższa latencja, Kafka blisko (różnica ~3-4ms), RabbitMQ stabilne (nie rośnie z obciążeniem w testowanym zakresie do 15 MBps).</p>
+<p><strong>Rekomendacja autorów wprost pasująca do projektu</strong>: dla niskiej/umiarkowanej przepustowości i niskiej latencji, gdy trzymanie danych tylko w pamięci nie wchodzi w grę — RabbitMQ jest dobrym wyborem. Bezpośrednie wsparcie dla decyzji odrzucenia Kafki z planu.</p>
+<p><strong>Krytyczne ograniczenia (ważne, by nie nadinterpretować)</strong>:</p>
+<ul>
+<li>broker testowany w izolacji, bez logiki biznesowej/bazy danych — nie mówi nic o wydajności całej aplikacji, tylko o suficie wydajności samego brokera,</li>
+<li>BRAK testu trwałości wiadomości (persistence/durable queues, publisher confirms) — prawdopodobnie testowali szybszą, mniej bezpieczną konfigurację; Twoje wyniki z trwałością i idempotencją będą wolniejsze, i to oczekiwane, nie błąd,</li>
+<li>brak testu przeciążenia/punktu załamania (testowali tylko komfortowy zakres do 15 MBps) — dokładnie to, czego szuka Twoja praca, więc jest to luka, którą wypełniasz.</li>
+</ul>
+<p><strong>Metodologia do przejęcia</strong>: percentyle latencji identyczne jak w planie (p50/p75/p95/p99) — dobre, niezależne potwierdzenie doboru metryk; zasada używania jednego, niezależnego od technologii narzędzia pomiarowego dla wszystkich porównywanych wariantów.</p>
+<p><strong>Gdzie użyć</strong>: uzasadnienie wyboru technologii (sekcja 7 planu — wsparcie dla RabbitMQ), metodologia (uzasadnienie percentyli i niezależności narzędzia), dyskusja/ograniczenia (rozróżnienie &quot;wydajność czystego brokera&quot; vs &quot;wydajność Twojej aplikacji z logiką biznesową i gwarancją trwałości&quot;).</p>
+<hr>
+<h3>2.5 Raje, S. N. (2019). <em>Performance Comparison of Message Queue Methods.</em> Master's thesis, University of Nevada, Las Vegas. <a href="https://doi.org/10.34917/16076287">https://doi.org/10.34917/16076287</a></h3>
+<p><strong>Typ</strong>: praca magisterska (zatwierdzona przez komisję, bez recenzji czasopisma) — niższy poziom dowodowy niż artykuł recenzowany. Cytować jako &quot;M.Sc. thesis&quot;, używać ostrożnie. Dobry wzorzec tego, jak wygląda praca magisterska w tej dziedzinie (i jak jej NIE zrobić: ok. 55 stron, w dużej mierze opisowa).</p>
+<p><strong>Co bada</strong>: ActiveMQ vs RabbitMQ vs Kafka; 4 topologie (1 producent–1 konsument, 1–2, 2–1, 2–2); metryki: przepustowość (1 mln wiadomości po 50 B), średnia latencja (wg liczby wiadomości i wg rozmiaru, łącznie 1 GB), całkowity czas transferu.</p>
+<p><strong>Najcenniejszy element: coordinated omission.</strong> Autorka używa HDR Histogram i wprost opisuje problem coordinated omission: narzędzie pomiarowe czeka na wolną odpowiedź i przez to NIE wysyła kolejnych żądań według harmonogramu, więc czas &quot;spędzony w kolejce&quot; nigdzie się nie zapisuje i latencja wychodzi zaniżona. To jest ta sama patologia co model zamknięty obciążenia (sekcja 4.3), widziana od strony pomiaru latencji. Źródło koncepcji: Gil Tene (do znalezienia i zacytowania jako źródło pierwotne).</p>
+<p><strong>Słabości</strong>:</p>
+<ul>
+<li>broker, producenci i konsumenci na TEJ SAMEJ maszynie (4 GB RAM) — rywalizacja o zasoby zafałszowuje wyniki,</li>
+<li>raportowana tylko ŚREDNIA latencja, mimo że użyte narzędzie (HDR Histogram) pozwala na percentyle — niekonsekwencja,</li>
+<li>brak powtórzeń i miar rozrzutu,</li>
+<li>topologie testują pub/sub (każdy konsument dostaje każdą wiadomość), a NIE wzorzec &quot;competing consumers&quot;/work queue, który będzie w Twoim systemie — wyników nie wolno przenosić wprost,</li>
+<li>bibliografia w dużej mierze to blogi, Wikipedia, DZone, strony firm — nie używać tej pracy jako źródła faktów o funkcjach brokerów (do tego oficjalna dokumentacja),</li>
+<li>błędne/uproszczone twierdzenia: że kolejki gwarantują &quot;przetworzenie dokładnie raz&quot; (w praktyce zwykle at-least-once), że ActiveMQ &quot;jest implementacją AMQP&quot; — NIE cytować tych stwierdzeń.</li>
+<li>w PDF nie ma danych liczbowych z wykresów (tylko opisy słowne) — nie da się z niej wziąć konkretnych liczb.</li>
+</ul>
+<p><strong>Ciekawa obserwacja pośrednia</strong>: w rozdziale o RPC autorka zauważa, że przy synchronicznym wywołaniu po timeoucie nie wiadomo, czy zgubiło się żądanie, czy odpowiedź, a ponowienie może dać duplikaty danych. To znaczy, że problem duplikatów dotyczy TAKŻE wariantu synchronicznego (ponowienia klienta/load balancera) — patrz ryzyko 4.8.</p>
+<p><strong>Gdzie użyć</strong>: metodologia (uzasadnienie problemu coordinated omission i wyboru modelu otwartego), dyskusja/ograniczenia (przyznanie przez autorkę, że nie testowano przeciążenia — ta sama luka co u Maharjana), ewentualnie przykład struktury pracy magisterskiej. NIE jako źródło danych o wydajności.</p>
+<hr>
+<h3>2.6 Shafabakhsh, Lagerström, Hacks (2020). <em>Evaluating the Impact of Inter Process Communication in Microservice Architectures.</em> QuASoQ 2020, CEUR-WS Vol. 2767, 55–63. <a href="https://ceur-ws.org/Vol-2767/07-QuASoQ-2020.pdf">https://ceur-ws.org/Vol-2767/07-QuASoQ-2020.pdf</a></h3>
+<p><strong>Typ</strong>: badanie eksperymentalne, recenzowane workshop proceedings (CEUR-WS — lżejsza recenzja niż główny nurt konferencji/czasopisma, ale solidna metodologia). NAJBLIŻSZY dotąd artykuł tematycznie: bezpośrednio porównuje REST i gRPC (synchroniczne) z RabbitMQ (asynchroniczne).</p>
+<p><strong>System testowy</strong>: strona produktu e-commerce złożona z 5 mikroserwisów za API Gateway (fan-out odczytowy — informacje o produkcie, recenzje, rekomendacje, wysyłka, koszyk). Scenariusz czysto READ-HEAVY, bez rywalizacji o zasób. Docker + Kubernetes na Azure.</p>
+<p><strong>KLUCZOWY WYNIK — niemal dosłowne potwierdzenie tezy pracy</strong>: przy niskim obciążeniu (50 użytkowników) gRPC najszybsze, RabbitMQ najwolniejsze. Przy wysokim obciążeniu (200 użytkowników) RabbitMQ zdecydowanie wygrywa z obiema metodami synchronicznymi. Autorzy wprost opisują: wydajność wariantu asynchronicznego spada STOPNIOWO pod rosnącym obciążeniem, podczas gdy synchroniczne zaczynają spadać GWAŁTOWNIE, gdy tylko obciążenie się nasili. To bezpośredni, niezależny precedens dla głównej hipotezy pracy — warto przywołać jako punkt wyjścia uzasadnienia tezy badawczej.</p>
+<p><strong>Mechanizm wyjaśniający (własna interpretacja, nie z artykułu)</strong>: RabbitMQ odrywa tempo przyjmowania żądań od tempa przetwarzania (żądania piętrzą się w kolejce), podczas gdy REST/gRPC trzymają zasób (wątek/połączenie) do zakończenia żądania, więc po przekroczeniu puli zasobów degradacja jest nagła. Łączy się z Prawem Little'a (sekcja 1).</p>
+<p><strong>Test dostępności</strong>: formuła MTTF/(MTTF+MTTR), ale zoperacjonalizowana nietypowo — &quot;MTTF&quot; to czas przetrwania pod celowo narastającym, ponadnormatywnym obciążeniem aż do załamania, nie klasyczne MTTF z normalnej eksploatacji. RabbitMQ przetrwał dłużej (~7 min vs ~5 i ~4,5 min), ale wracał do działania wolniej po restarcie (+10s, bo broker musi odbudować połączenia). Terminologię warto przeformułować własnymi, precyzyjniejszymi słowami przy cytowaniu.</p>
+<p><strong>Wzorcowa sekcja &quot;Threats to Validity&quot; (do naśladowania w metodologii własnej pracy)</strong>:</p>
+<ul>
+<li>pojedyncza technologia jako reprezentant paradygmatu (jeden RabbitMQ = &quot;asynchroniczność&quot;) — dotyczy też Twojej pracy, zapisać jako zagrożenie dla trafności,</li>
+<li>brak pełnej komunikacji międzyusługowej (tylko gateway→serwis) — Ciebie to nie dotyczy (1 usługa na wariant), ale warto odnotować różnicę,</li>
+<li>wysoka konfigurowalność technologii — inna konfiguracja może dać inne wyniki; wymienić kluczowe parametry (prefetch count, liczba wątków serwera, timeouty) dla odtwarzalności.</li>
+</ul>
+<p><strong>Szóste już potwierdzenie tej samej luki</strong>: brak testu poprawności pod współbieżnym dostępem do zasobu (czysty odczyt, fan-out). Kolejne niezależne potwierdzenie, że ten wymiar jest realną luką badawczą.</p>
+<p><strong>Literatura poboczna warta odnotowania</strong>: Ueda i in. (IBM, 2016) — mikroserwisy miały WYŻSZY narzut wydajnościowy niż monolit, winiąc słaby dobór IPC — dobry kontrapunkt do zrównoważenia narracji &quot;async/mikroserwisy zawsze lepsze&quot;; Fernandes i in. (2013) — REST vs AMQP, inny zakres obciążenia, inny wniosek — dowód, że wyniki silnie zależą od zakresu testowanego obciążenia.</p>
+<p><strong>Gdzie użyć</strong>: przegląd literatury (najmocniejszy precedens dla tezy), rozdział teoretyczny (dobre wprowadzenie REST/gRPC/message broker), metodologia (wzór sekcji Threats to Validity), dyskusja (porównanie kształtu krzywych degradacji, przywołanie Ueda i in. dla równowagi).</p>
+<hr>
+<h3>2.7 Çiftçi, Çiloğlugil (2025). <em>A Review of Comparative Studies on Performance Evaluation of Communication Mechanisms for Microservices.</em> ICCSA 2025, LNCS vol. 15650, 98–113. <a href="https://doi.org/10.1007/978-3-031-96962-1_7">https://doi.org/10.1007/978-3-031-96962-1_7</a></h3>
+<p><strong>UWAGA: artykuł za paywallem — znam TYLKO abstrakt i bibliografię, nie pełną treść.</strong> Nie cytować żadnych szczegółów metodologicznych/wyników poza abstraktem.</p>
+<p><strong>Typ</strong>: artykuł przeglądowy (meta-recenzja badań porównawczych mechanizmów komunikacji w mikroserwisach).</p>
+<p><strong>Co wynika z abstraktu (można cytować)</strong>: REST i gRPC to najczęściej oceniane technologie synchroniczne; Kafka i RabbitMQ najczęściej oceniane asynchroniczne; Apache JMeter najpopularniejsze narzędzie benchmarkowe; przepustowość i latencja najczęściej stosowane metryki. Dobre jako niezależne, meta-poziomowe potwierdzenie zgodności doboru technologii (RabbitMQ) i metryk z głównym nurtem badań w tej dziedzinie.</p>
+<p><strong>Wartościowa bibliografia do ewentualnego dalszego snowballingu (NIEPRZECZYTANE, tylko tytuły)</strong>:</p>
+<ul>
+<li>Bux, Shenoy (2024) — <em>Performance analysis of RESTful web services and RabbitMQ for microservices-based systems on cloud environment</em>, INOCON 2024 — tytuł sugeruje niemal dokładne dopasowanie do tematu pracy,</li>
+<li>Weerasinghe, Perera (2022, 2023) — dwie prace o komunikacji międzyusługowej,</li>
+<li>Dobbelaere, Esmaili (2017) — <em>Kafka versus RabbitMQ</em> — klasyczna praca porównawcza, dobra do uzasadnienia wyboru RabbitMQ zamiast Kafki,</li>
+<li>Niswar i in. (2024) — REST vs GraphQL vs gRPC,</li>
+<li>Kazanavičius, Mažeika (2023) — komunikacja mikroserwisów przy dekompozycji monolitu.</li>
+</ul>
+<p><strong>Gdzie użyć</strong>: krótka wzmianka w metodologii/uzasadnieniu wyboru technologii, cytując wyłącznie wnioski z abstraktu. Bibliografia — potencjalne źródło do dalszych poszukiwań, jeśli zajdzie potrzeba rozszerzenia przeglądu literatury.</p>
+<hr>
+<h3>2.8 Kazanavičius, Mažeika (2023). <em>Evaluation of Microservice Communication While Decomposing Monoliths.</em> Computing and Informatics, 42(1), 1–36. <a href="https://doi.org/10.31577/cai_2023_1_1">https://doi.org/10.31577/cai_2023_1_1</a></h3>
+<p><strong>Typ</strong>: badanie eksperymentalne, open access, recenzowane czasopismo (Słowacka Akademia Nauk). Zamiennik za płatny artykuł Çiftçi i Çiloğlugil — faktycznie cytowany w jego bibliografii.</p>
+<p><strong>System testowy</strong>: 5 mikroserwisów (.NET/C#), 3 topologie (liniowa/drzewiasta/gwiazda), 5 technologii: REST, RabbitMQ, Kafka, gRPC, GraphQL. Mierzą latencję i przepustowość w zależności od rozmiaru/złożoności wiadomości.</p>
+<p><strong>KLUCZOWE ZASTRZEŻENIE TERMINOLOGICZNE</strong>: RabbitMQ i Kafka testowane są jako <strong>RPC przez broker</strong> (2 kolejki: żądanie + odpowiedź, klient CZEKA na odpowiedź), a NIE jako prawdziwe &quot;fire-and-forget&quot;/publish-subscribe. To fundamentalnie inny wzorzec niż architektura zdarzeniowa planowana w pracy (publikacja zdarzenia bez oczekiwania na przetworzenie). Nie przenosić wyników wprost jako &quot;wyniki dla architektury asynchronicznej&quot; — trzeba jasno zdefiniować w pracy, że &quot;architektura zdarzeniowa&quot; oznacza fire-and-forget, nie RPC-przez-broker.</p>
+<p><strong>Wyniki</strong>: RabbitMQ najniższa latencja dla małych/średnich wiadomości (2-3x szybciej), ale najwolniejszy dla bardzo dużych (1 000 000 znaków, 3-4x wolniej). Kafka najgorsza przepustowość w 5 z 8 przypadków — SPRZECZNE z wynikiem Maharjana (gdzie Kafka była najlepsza)! Dowód na to, że wyniki benchmarków silnie zależą od implementacji (język, wzorzec użycia, dojrzałość biblioteki klienckiej — tu użyto niszowej <code>Simple.Kafka.Rpc</code>), nie da się przenosić liczb między badaniami.</p>
+<p><strong>Wspierający wniosek</strong>: mimo wzorca RPC-przez-broker, RabbitMQ i Kafka przetwarzają więcej wiadomości stabilniej przy obciążeniu &gt;50 klientów niż REST/gRPC/GraphQL — TRZECIE niezależne potwierdzenie stabilności brokera pod obciążeniem (obok Shafabakhsh i Al-Said Ahmad).</p>
+<p><strong>Threats to validity</strong>: jeden język (C#), jeden system operacyjny (Windows) — ten sam wzorzec zastrzeżenia co &quot;jedna technologia jako reprezentant&quot; u Shafabakhsh, przeniesiony na poziom platformy.</p>
+<p><strong>Siódme potwierdzenie luki badawczej</strong>: brak testu poprawności pod współbieżnym dostępem do zasobu.</p>
+<p><strong>Dane poboczne przydatne do porównań</strong>: zużycie pamięci (RabbitMQ najmniej, 23 MB), rozmiar aplikacji, czas rozruchu dla każdej z 5 technologii.</p>
+<p><strong>Gdzie użyć</strong>: rozdział teoretyczny (precyzyjne rozróżnienie RPC-przez-broker vs fire-and-forget), metodologia (uzasadnienie nieprzenoszenia liczb między benchmarkami), dyskusja (trzecie potwierdzenie stabilności brokera, porównanie zużycia zasobów).</p>
+<hr>
+<h3>2.9 Waseem, Liang, Ahmad, Shahin, Khan, Márquez (2022). <em>Decision Models for Selecting Patterns and Strategies in Microservices Systems and their Evaluation by Practitioners.</em> ICSE-SEIP '22. <a href="https://doi.org/10.48550/arXiv.2201.05825">https://doi.org/10.48550/arXiv.2201.05825</a></h3>
+<p><strong>Typ</strong>: katalog wzorców projektowych (multivocal literature review) + walidacja jakościowa (24 wywiady z praktykami z 12 krajów). NIE jest to badanie wydajnościowe/ilościowe — inny rodzaj dowodu niż pozostałe artykuły. Venue: ICSE-SEIP — jedno z najbardziej prestiżowych w całym zestawieniu.</p>
+<p><strong>NAJWAŻNIEJSZE: formalna taksonomia wzorców komunikacji (Tabela 4), rozstrzygająca wcześniejszą niejasność terminologiczną</strong>:</p>
+<ul>
+<li><strong>RPI (Remote Procedure Invocation)</strong>: request/reply, np. REST, gRPC.</li>
+<li><strong>Synchronous messaging</strong>: nadawca CZEKA na odpowiedź (styl orkiestracji).</li>
+<li><strong>Asynchronous messaging</strong>: nadawca NIE czeka na odpowiedź (styl choreografii) — to jest formalna definicja &quot;architektury zdarzeniowej&quot; z planu pracy.</li>
+<li><strong>Publish-subscribe messaging</strong>: rozgłoszenie do zera lub więcej odbiorców, bez odpowiedzi.</li>
+<li><strong>Publish-asynchronous messaging</strong>: rozgłoszenie do 1+ odbiorców, z odpowiedzią od niektórych.</li>
+<li><strong>Asynchronous request-reply</strong>: żądanie bezpośrednio do JEDNEGO odbiorcy, z NATYCHMIASTOWĄ odpowiedzią.</li>
+<li><strong>Idempotent consumer</strong>: osobny wzorzec wykrywania/odrzucania duplikatów, jawnie stosowalny ZARÓWNO z komunikacją synchroniczną, jak i asynchroniczną.</li>
+</ul>
+<p><strong>Retroaktywne doprecyzowanie sekcji 2.8</strong>: to, co testowali Kazanavičius i Mažeika (RabbitMQ jako RPC z 2 kolejkami, klient czeka na odpowiedź), to zgodnie z tą taksonomią wzorzec <strong>&quot;Asynchronous request-reply&quot;</strong>, NIE &quot;Asynchronous messaging&quot;. Mają teraz precyzyjną nazwę do cytowania tego rozróżnienia zamiast opisowego omówienia.</p>
+<p><strong>Niezależne potwierdzenia (z venue wyższej jakości niż dotychczasowe)</strong>:</p>
+<ul>
+<li>Testowalność/debugowanie komunikacji asynchronicznej jest trudne — formalne potwierdzenie obserwacji Lazzari i Farias o braku stack trace'u (drugie niezależne źródło).</li>
+<li>Wzorzec Idempotent consumer dotyczy OBU wariantów (sync i async) — formalne potwierdzenie ryzyka 4.8 (idempotencja potrzebna też w wariancie synchronicznym).</li>
+</ul>
+<p><strong>Ważna różnica pozycjonująca pracę</strong>: artykuł opisuje wpływ wzorców na atrybuty jakości w sposób STATYCZNY, niezależny od obciążenia (np. &quot;async poprawia skalowalność, ale ma wyższy response time niż sync&quot; — jako stały fakt). Praca magisterska bada, JAK te efekty zmieniają się wraz ze skalą obciążenia — to wyraźne, dobre do zacytowania pozycjonowanie oryginalności wkładu.</p>
+<p><strong>Zastrzeżenie</strong>: brak dostępu do diagramów BPMN z oryginalnymi znakami +/- dla wpływu na atrybuty jakości — niektóre szczegóły (np. czy &quot;Coupling&quot; jest wymieniony jako zaleta czy wada Synchronous messaging) są niejednoznaczne w samym tekście i nie powinny być cytowane bez weryfikacji wizualnej.</p>
+<p><strong>Gdzie użyć</strong>: rozdział teoretyczny (formalna, precyzyjna taksonomia wzorców komunikacji — fundament definicji &quot;architektury zdarzeniowej&quot; używanej w pracy), uzasadnienie luki badawczej (kontrast: statyczny opis vs dynamiczne, zależne od obciążenia podejście pracy), dyskusja (potwierdzenie trudności debugowania).</p>
+<hr>
+<p><strong>TO BYŁ OSTATNI Z PIERWOTNIE ZAPOWIEDZIANYCH PIĘCIU ARTYKUŁÓW. Gotowe do finalnej rundy syntezy: aktualizacja planu pracy + domknięcie przewodnika cytowań + domknięcie listy otwartych pytań.</strong></p>
+<hr>
+<h2>3. Glosariusz i rozróżnienia terminologiczne (żeby nie pomylić się w pracy)</h2>
+<table>
+<thead>
+<tr>
+<th>Pojęcie A</th>
+<th>Pojęcie B</th>
+<th>Różnica</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Partycja sieciowa</td>
+<td>Partycjonowanie danych (sharding)</td>
+<td>Awaria komunikacji vs celowy podział danych</td>
+</tr>
+<tr>
+<td>Event-driven architecture (EDA)</td>
+<td>Event sourcing</td>
+<td>Styl komunikacji (zdarzenia między usługami) vs sposób przechowywania stanu (jako log zdarzeń)</td>
+</tr>
+<tr>
+<td>Event-driven architecture</td>
+<td>CQRS</td>
+<td>Styl komunikacji vs rozdzielenie ścieżki zapisu/odczytu</td>
+</tr>
+<tr>
+<td>Chaos engineering</td>
+<td>Stress/load testing</td>
+<td>Wprowadzanie awarii dla zaufania do odporności vs sprawdzanie zachowania pod dużym obciążeniem — Twoja praca jest bliżej tego drugiego</td>
+</tr>
+<tr>
+<td>Model zamknięty (closed workload)</td>
+<td>Model otwarty (open workload)</td>
+<td>Ustalona liczba użytkowników czekających na odpowiedź (samoregulacja obciążenia) vs ustalona częstość napływu niezależna od odpowiedzi (realistyczniejsze pod przeciążeniem)</td>
+</tr>
+<tr>
+<td>At-least-once delivery</td>
+<td>Exactly-once delivery</td>
+<td>RabbitMQ domyślnie gwarantuje pierwsze — możliwe duplikaty przy awarii konsumenta przed ack</td>
+</tr>
+<tr>
+<td>Availability (metryka empiryczna)</td>
+<td>Availability (własność algorytmu, Gilbert-Lynch)</td>
+<td>Odsetek udanych żądań po fakcie vs formalna własność &quot;każdy sprawny węzeł kiedyś odpowie&quot; (liveness, bez limitu czasu)</td>
+</tr>
+<tr>
+<td>Coordinated omission</td>
+<td>Poprawny pomiar latencji</td>
+<td>Generator czeka na wolną odpowiedź i nie wysyła zaplanowanych żądań, więc czas oczekiwania w kolejce nie jest mierzony (latencja zaniżona) vs generator wysyła żądania według harmonogramu niezależnie od odpowiedzi</td>
+</tr>
+<tr>
+<td>Pub/sub (fanout)</td>
+<td>Work queue (competing consumers)</td>
+<td>Każdy konsument dostaje każdą wiadomość vs każda wiadomość trafia do jednego konsumenta — Twój zakup to work queue</td>
+</tr>
+<tr>
+<td>RPC przez broker</td>
+<td>Fire-and-forget / publish-subscribe</td>
+<td>Klient publikuje żądanie i CZEKA na odpowiedź przez kolejkę zwrotną (nadal synchroniczne z perspektywy klienta, tylko inny transport) vs klient publikuje zdarzenie i NIE czeka — to drugie jest prawdziwą &quot;architekturą zdarzeniową&quot; z planu pracy</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>4. Zidentyfikowane ryzyka techniczne i metodologiczne — DO ZAADRESOWANIA</h2>
+<h3>4.1 At-least-once delivery w RabbitMQ (ryzyko wysokiego priorytetu)</h3>
+<p>Konsument może przetworzyć to samo zdarzenie zakupu dwa razy, jeśli ulegnie awarii między przetworzeniem a wysłaniem ack. Zagraża spójności logu transakcji, potencjalnie poprawności.
+<strong>Mitygacja</strong>: idempotencja konsumenta przez unikalny <code>event_id</code> + unikalny indeks/constraint w bazie (<code>INSERT ... ON CONFLICT DO NOTHING</code>), sprawdzenie i zapis w jednej transakcji.
+<strong>Do zrobienia</strong>: świadomie zaplanować test weryfikacyjny (np. <code>docker kill</code> konsumenta w trakcie przetwarzania) jako osobny, mały eksperyment, i opisać jako &quot;threat to validity&quot; w metodologii niezależnie od wyniku.</p>
+<h3>4.2 Brak obserwowalności między usługami (diagnostyka)</h3>
+<p>W EDA nie ma stack trace'u między usługami — błąd może być trudny do namierzenia w dużej skali.
+<strong>Mitygacja</strong>: correlation ID przekazywany przez wszystkie zdarzenia powstałe z jednego żądania klienta, dołączony do nagłówków wiadomości RabbitMQ i do wszystkich logów. Rozważyć scentralizowane zbieranie logów (nawet prosty wspólny plik/baza z Dockera).
+<strong>Do zrobienia</strong>: wdrożyć od początku Fazy 4, przed testami obciążeniowymi — nie doklejać później.</p>
+<h3>4.3 Model otwarty vs zamknięty obciążenia</h3>
+<p>Plan zakłada &quot;liczbę symulowanych użytkowników&quot; — to model zamknięty (samoregulujący, może maskować gwałtowność degradacji pod przeciążeniem). Klasyczna praca: Schroeder et al., <em>&quot;Open Versus Closed: A Cautionary Tale&quot;</em>, NSDI 2006 — do znalezienia i zacytowania.
+<strong>Do zrobienia</strong>: świadomie zadeklarować wybór modelu w metodologii i uzasadnić (flash sale = ograniczona liczba realnych klientów, więc model zamknięty jest uzasadniony); rozważyć dodatkowo jeden scenariusz w modelu otwartym (k6 arrival-rate executor) jako test spójności wniosków.</p>
+<h3>4.4 Brak testu poprawności w całej dotychczasowej literaturze</h3>
+<p>Żaden z trzech omówionych badań empirycznych (Al-Said Ahmad, Rahmatulloh) nie testuje poprawności pod współbieżnym dostępem do zasobu. To realna, potwierdzona luka badawcza — mocny argument o oryginalności Twojej pracy.</p>
+<h3>4.5 Precyzyjna definicja &quot;degradacji&quot;/progu przeciążenia</h3>
+<p>W literaturze próg odkrywano post factum (metodą prób). Zalecenie: zdefiniować z góry kryterium (np. p95 &gt; X ms lub error rate &gt; Y%) przed rozpoczęciem Fazy 6.</p>
+<h3>4.6 Definicja &quot;czasu odpowiedzi&quot; w wariancie asynchronicznym</h3>
+<p>Niejednoznaczne, czy mierzyć czas do przyjęcia żądania do kolejki, czy czas do faktycznego przetworzenia zdarzenia. Zdefiniować explicite i konsekwentnie stosować w obu wariantach.</p>
+<h3>4.7 Coordinated omission w pomiarze latencji</h3>
+<p>Jeśli generator obciążenia czeka na odpowiedź przed wysłaniem kolejnego żądania (model zamknięty), wolne odpowiedzi &quot;chowają&quot; opóźnienia, których nie zmierzono, więc percentyle (zwłaszcza p99) wychodzą zaniżone. To najbardziej dotyka wariantu synchronicznego pod przeciążeniem, czyli może sztucznie zmniejszyć różnicę między wariantami.
+<strong>Do zrobienia</strong>: wybrać narzędzie/tryb, który planuje żądania według harmonogramu (k6 arrival-rate executor, wrk2 itp.), i zweryfikować w dokumentacji wybranego narzędzia, jak radzi sobie z tym problemem. Źródło pierwotne (Gil Tene) do znalezienia i zacytowania.</p>
+<h3>4.8 Idempotencja także w wariancie synchronicznym</h3>
+<p>Ponowienia po timeoucie (klient, load balancer, biblioteka HTTP) mogą zdublować żądanie zakupu również w architekturze synchronicznej. Jeśli idempotencję (unikalny klucz żądania) wdrożysz tylko w wariancie zdarzeniowym, porównanie będzie nieuczciwe (dodatkowy koszt tylko po jednej stronie).
+<strong>Do zrobienia</strong>: zdecydować i zapisać w metodologii, że oba warianty mają ten sam mechanizm idempotencji (klucz żądania nadawany przez klienta), albo jawnie wyłączyć ponowienia po stronie klienta/LB w obu wariantach.</p>
+<h3>4.9 Kontrola przepływu (backpressure) w RabbitMQ — hipoteza do sprawdzenia</h3>
+<p>Hipoteza własna (NIE z artykułów): RabbitMQ potrafi spowalniać lub blokować producentów, gdy broker nie nadąża (kontrola przepływu, alarmy pamięci/dysku). Jeśli tak, to pod przeciążeniem wariant &quot;asynchroniczny&quot; może zacząć zachowywać się jak synchroniczny (publikacja zaczyna czekać), co bezpośrednio wpływa na tezę o &quot;łagodniejszej degradacji&quot;.
+<strong>Do zrobienia</strong>: sprawdzić w oficjalnej dokumentacji RabbitMQ (flow control, memory/disk alarms, publisher confirms, consumer prefetch) i zdecydować, co dokładnie znaczy &quot;czas odpowiedzi&quot; wariantu zdarzeniowego (potwierdzenie przyjęcia do kolejki vs zakończenie przetwarzania). Monitorować długość kolejki jako dodatkową metrykę.</p>
+<h3>4.10 Wzorzec konsumpcji: work queue, nie pub/sub</h3>
+<p>Benchmarki z literatury (Raje) testują często pub/sub (każdy konsument dostaje każdą wiadomość). Twój zakup to wzorzec competing consumers/work queue (każda wiadomość przetwarzana raz przez jednego konsumenta). Wyników z pub/sub nie przenosić wprost.</p>
+<h3>4.11 &quot;Jedna technologia jako reprezentant paradygmatu&quot; — zagrożenie dla trafności do jawnego zapisania</h3>
+<p>Shafabakhsh i in. sami to przyznają: wyniki dotyczą konkretnie RabbitMQ/gRPC/REST, niekoniecznie &quot;paradygmatu&quot; jako takiego. Twoje wnioski będą dotyczyć Twojej konkretnej implementacji (konkretny framework, konkretna konfiguracja RabbitMQ), nie &quot;architektury synchronicznej/zdarzeniowej w ogóle&quot;.
+<strong>Do zrobienia</strong>: zapisać to wprost jako threat to validity w metodologii, i wymienić kluczowe parametry konfiguracyjne obu wariantów (np. prefetch count, liczba wątków/połączeń serwera, timeouty) dla odtwarzalności.</p>
+<hr>
+<h2>5. Przewodnik cytowań — co, gdzie i jak w strukturze pracy</h2>
+<p><strong>Rozdział teoretyczny (podstawy)</strong>:</p>
+<ul>
+<li>Kleppmann — CAP, spójność, safety/liveness, O(d)/O(1) (jako aparat pojęciowy, nie jako literatura przedmiotu wprost)</li>
+<li>Lazzari &amp; Farias — glosariusz EDA/event sourcing/CQRS, uzasadnienie luki badawczej</li>
+<li>Little's Law (dodać osobne, kanoniczne źródło, nie tylko z tego dokumentu)</li>
+<li>Schroeder et al. — open vs closed workload (do znalezienia i dodania)</li>
+</ul>
+<p><strong>Przegląd literatury (related work)</strong>:</p>
+<ul>
+<li>Wszystkie 3+ artykuły empiryczne, z jasnym rozróżnieniem: co badały dokładnie, jaka metodologia, jakie wyniki, jakie ograniczenia</li>
+<li>Explicite nazwać wspólną lukę: brak powtórzeń/percentyli/testu poprawności w dotychczasowych badaniach — to Twój wkład</li>
+</ul>
+<p><strong>Metodologia</strong>:</p>
+<ul>
+<li>Al-Said Ahmad — wzorzec projektu eksperymentu (baseline, powtórzenia, warm-up)</li>
+<li>Rahmatulloh — kontrast (czego NIE robić: brak powtórzeń, brak percentyli)</li>
+<li>Twoje własne uzasadnienie: model zamknięty obciążenia, definicja progu degradacji, mechanizm idempotencji</li>
+</ul>
+<p><strong>Dyskusja/wnioski</strong>:</p>
+<ul>
+<li>Porównanie kształtu krzywych degradacji z Al-Said Ahmad i Rahmatulloh</li>
+<li>Lazzari &amp; Farias — zrównoważenie narracji (koszty EDA po innej stronie: złożoność, coupling)</li>
+<li>Własne wnioski o poprawności pod obciążeniem — nowość względem całej dotychczasowej literatury</li>
+</ul>
+<p><strong>Zasada ogólna</strong>: nigdy nie cytować konkretnych procentów/liczb z tych badań jako uogólnionych prawd o architekturach — zawsze przypisywać do konkretnego, wąskiego kontekstu badania (jedna aplikacja, jeden sprzęt, brak powtórzeń).</p>
+<hr>
+<h2>6. Otwarte pytania (do dalszej pracy / do promotorki)</h2>
+<ul>
+<li><input disabled="" type="checkbox"> Czy definiować &quot;dostępność&quot; i &quot;czas odpowiedzi&quot; osobno dla wariantu sync i async, czy próbować ujednolicić metrykę?</li>
+<li><input disabled="" type="checkbox"> Czy warto dodać scenariusz w modelu otwartym obciążenia jako uzupełnienie głównego (zamkniętego)?</li>
+<li><input disabled="" type="checkbox"> Czy testować odporność na duplikaty dostawy (RabbitMQ) jako osobny, mały eksperyment?</li>
+<li><input disabled="" type="checkbox"> Jakie dokładnie kryterium liczbowe przyjąć jako próg &quot;degradacji&quot;/przeciążenia?</li>
+<li><input disabled="" type="checkbox"> Czy i jak mierzyć koszt złożoności/utrzymania (nawiązując do Lazzari &amp; Farias), czy zostać wyłącznie przy wydajności i poprawności?</li>
+</ul>
+<hr>
+<h2>7. Status pracy nad artykułami</h2>
+<p>Przeanalizowane dokładnie: Kleppmann (CAP, tło teoretyczne), Al-Said Ahmad i in. (2024), Rahmatulloh i in. (2022), Lazzari &amp; Farias (2023).
+Przeanalizowane dodatkowo: Maharjan i in. (2023, benchmark brokerów), Raje (2019, praca magisterska o brokerach), Shafabakhsh i in. (2020, REST/gRPC vs RabbitMQ — najbliższy dotąd tezie pracy), Çiftçi i Çiloğlugil (2025, przegląd — tylko abstrakt, paywall), Kazanavičius i Mažeika (2023, 5 technologii IPC — ważne zastrzeżenie terminologiczne RPC-przez-broker vs fire-and-forget), Waseem i in. (2022, formalna taksonomia wzorców komunikacji — ICSE-SEIP, rozstrzyga terminologię).</p>
+<p>WSZYSTKIE 9 ARTYKUŁÓW PRZEANALIZOWANE. Następny krok: finalna runda syntezy (aktualizacja planu pracy, domknięcie przewodnika cytowań, domknięcie listy otwartych pytań).
+Do zrobienia na końcu: zaktualizowany plan pracy (osobny plik), ostateczne podsumowanie ryzyk i cytowań.</p>
+
+</body></html>
