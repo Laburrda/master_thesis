@@ -1,0 +1,3 @@
+# Keep LF line endings so the shell scripts also run inside Linux containers.
+*.sh  text eol=lf
+*.sql text eol=lf

@@ -1,0 +1,33 @@
+# Database only. The API and worker get their own compose files/profiles later.
+services:
+  postgres:
+    image: postgres:17  # pin an exact tag (e.g. 17.x) before running the experiments
+    container_name: shop-postgres
+    environment:
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: shop  # research environment only
+      POSTGRES_DB: shop
+      SEED_TOTAL_PRODUCTS: "2000"
+      SEED_HOT_COUNT: "100"
+      SEED_HOT_STOCK: "100"
+      SEED_COLD_STOCK: "100000"
+    # Anything that affects performance is set explicitly here and must stay the same
+    # across all test conditions. Every other setting (shared_buffers, ...) is left at
+    # the image default on purpose. The connection pools of the API and the worker
+    # must fit under this limit together.
+    command: ["postgres", "-c", "max_connections=200"]
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    # CPU/RAM limits are still undecided. Once they are, add for example:
+    # deploy: { resources: { limits: { cpus: "2", memory: 2g } } }
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
