@@ -1,6 +1,6 @@
 ﻿namespace Shop.Application.Common
 {
-    public static class Errorcodes
+    public static class ErrorCodes
     {
         public const string ProductNotFound = "PRODUCT_NOT_FOUND";
         public const string ValidationError = "VALIDATION_ERROR";
