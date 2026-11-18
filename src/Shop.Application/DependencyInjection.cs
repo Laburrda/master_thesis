@@ -8,7 +8,8 @@ namespace Shop.Application
         public static IServiceCollection AddApplication(
             this IServiceCollection services)
         {
-            services.AddScoped<GetProductQuery>();
+            services.AddScoped<GetProductHandler>();
+            services.AddScoped<ListProductsHandler>();
 
             return services;
         }

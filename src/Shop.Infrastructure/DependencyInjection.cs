@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shop.Application.Abstractions;
 using Shop.Infrastructure.Persistence;
-using Shop.Infrastructure.Persistence.Repositories;
+using Shop.Infrastructure.Persistence.Redis;
 
 namespace Shop.Infrastructure
 {
@@ -18,7 +18,7 @@ namespace Shop.Infrastructure
             services.AddDbContext<ShopDbContext>(options =>
                 options.UseNpgsql(connectionString));
 
-            services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddScoped<IProductReader, ProductReader>();
 
             return services;
         }

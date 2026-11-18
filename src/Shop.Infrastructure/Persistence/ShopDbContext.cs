@@ -3,7 +3,7 @@ using Shop.Domain.Models;
 
 namespace Shop.Infrastructure.Persistence
 {
-    public class ShopDbContext : DbContext
+    internal class ShopDbContext : DbContext
     {
         public ShopDbContext(DbContextOptions<ShopDbContext> options) : base(options) { }
 
